@@ -1,14 +1,13 @@
 #!/bin/sh
 
-HOSTNAME_VM="pep"
+HOSTNAME_VM="test_vm"
 DISTRIB="stretch"
 LVM_VG="work"
 REPO_URL="http://repo.pet4.ru:9999/mirror.yandex.ru/debian"
 
 DISK_SIZE="5G"
-MEM_KB="1048576"
 MEM_MB="512"
-VCPU="1"
+VCPUS="1"
 INT_BR="br.0"
 
 ROOTFS_LABEL="${HOSTNAME_VM}-root"
@@ -17,6 +16,7 @@ INSTALL_DIR="${ROOT_DIR}/rootfs"
 BOOT_DIR="${INSTALL_DIR}/boot"
 VM_BOOT_DIR="/var/lib/libvirt/boot/${HOSTNAME_VM}"
 DEVICE_NAME="/dev/${LVM_VG}/${ROOTFS_LABEL}"
+MEM_KB="$((${MEM_MB}*1024))"
 
 die_script(){
    echo "$1"
@@ -86,29 +86,6 @@ configuring_vm(){
     return 1
   fi
 
-  ### install grub
-  # chroot ${INSTALL_DIR} bash -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y grub2' 
-  #
-  #  if [ "$?" -ne "0" ]
-  #  then
-  #    umount ${INSTALL_DIR}/proc ${INSTALL_DIR}/sys
-  #    echo 'ERROR: Can not install package grub2.'
-  #    return 1
-  #  fi
-  #
-  #  sed -i '/GRUB_CMDLINE_LINUX_DEFAULT/s/quiet/quiet console=ttyS0/' ${INSTALL_DIR}/etc/default/grub
-  #  printf 'GRUB_TERMINAL=serial\n' >> ${INSTALL_DIR}/etc/default/grub
-  #  printf 'GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1"\n' >> ${INSTALL_DIR}/etc/default/grub
-  #  chroot ${INSTALL_DIR} bash -c 'update-grub'
-
-  # grub-install --boot-directory="${INSTALL_DIR}/boot" ${DEVICE_NAME}&&\
-  #if [ "$?" -ne "0" ]
-  #then
-  #  umount ${INSTALL_DIR}/proc ${INSTALL_DIR}/sys
-  #  echo 'can not install grub' 
-  #  return 1
-  #fi
-
   return 0
 
 }
@@ -139,50 +116,11 @@ fi
 
 umount ${INSTALL_DIR}/boot ${INSTALL_DIR}/proc ${INSTALL_DIR}/sys ${INSTALL_DIR}
 
-
-
-#<domain type='kvm'><name>test</name>
-#<memory unit='KiB'>1048576</memory><vcpu placement='static'>1</vcpu>
-#<os><type arch='x86_64' machine='pc-i440fx-2.8'>hvm</type></os>
-#<features><acpi/><apic/><vmport state='off'/></features>
-#<pm><suspend-to-mem enabled='no'/><suspend-to-disk enabled='no'/></pm>
-#<devices><emulator>/usr/bin/kvm</emulator>
-#<disk type='block' device='disk'><source dev='/dev/kvmvg/reanimator-root'/><target dev='vda' bus='virtio'/></disk>
-#<interface type='bridge'><source bridge='loc'/><model type='virtio'/></interface>
-#<console type='pty'><target type='serial' port='0'/></console>
-#<memballoon model='virtio'></memballoon></devices></domain>
-
-
-
-
-
-#virt-install --name nic 
-#  --ram 512 
-#  --disk /dev/vg_ext/nic-standalone
-#  --disk /dev/vg_ext/nic-swap
-#  --network bridge=br0
-#  --boot kernel=/boot/vmlinuz,initrd=/boot/initramfs.img,kernel_args="console=ttyS0 root=/dev/sda" 
-#  --serial=pty
-cat<<eof
-virt-install                          \
-  --name ${HOSTNAME_VM}               \
-  --hvm                               \
-  --ram ${MEM_MB}                     \
-  --disk ${DEVICE_NAME}               \
-  --vcpus ${VCPU}                     \
-  --network bridge=${INT_BR}          \
-  --serial pty                        \
-  --memballoon model=virtio           \
-  --filesystem ${VM_BOOT_DIR},boot   \
-  --boot kernel=${VM_BOOT_DIR}/vmlinuz,initrd=${VM_BOOT_DIR}/initrd.img,kernel_args="root=LABEL=${ROOTFS_LABEL} ro console=ttyS0 quiet" 
-eof
-
-#virsh define /dev/stdin
-cat>/dev/null <<__EOF__
+virsh define /dev/stdin <<__EOF__
 <domain type='kvm'>
   <name>${HOSTNAME_VM}</name>
   <memory unit='KiB'>${MEM_KB}</memory>
-  <vcpu placement='static'>${VCPU}</vcpu>
+  <vcpu placement='static'>${VCPUS}</vcpu>
   <os>
     <type arch='x86_64' machine='pc-i440fx-2.8'>hvm</type>
     <kernel>${VM_BOOT_DIR}/vmlinuz</kernel>
