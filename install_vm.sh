@@ -1,13 +1,13 @@
 #!/bin/sh
 
-HOSTNAME_VM="test_vm"
-DISTRIB="stretch"
+HOSTNAME_VM="ol_jessie"
+DISTRIB="jessie"
 LVM_VG="work"
 REPO_URL="http://repo.pet4.ru:9999/mirror.yandex.ru/debian"
 
 DISK_SIZE="5G"
-MEM_MB="512"
-VCPUS="1"
+MEM_MB="1024"
+VCPUS="3"
 INT_BR="br.0"
 
 ROOTFS_LABEL="${HOSTNAME_VM}-root"
@@ -115,6 +115,8 @@ fi
  
 
 umount ${INSTALL_DIR}/boot ${INSTALL_DIR}/proc ${INSTALL_DIR}/sys ${INSTALL_DIR}
+
+chown -R libvirt-qemu:libvirt-qemu ${VM_BOOT_DIR}
 
 virsh define /dev/stdin <<__EOF__
 <domain type='kvm'>
