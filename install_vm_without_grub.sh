@@ -3,7 +3,7 @@
 HOSTNAME_VM="fix"
 DISTRIB="buster"
 LVM_VG="work"
-REPO_URL="http://repo.pet4.ru:9999/mirror.yandex.ru/debian"
+REPO_URL="http://mirror.yandex.ru/debian"
 
 DISK_SIZE="5G"
 MEM_MB="512"
