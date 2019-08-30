@@ -16,8 +16,6 @@ FS_TYPE="ext4"
 ROOTFS_LABEL="${HOSTNAME_VM}-root"
 ROOT_DIR="/tmp/vm_install/${HOSTNAME_VM}"
 INSTALL_DIR="${ROOT_DIR}/rootfs"
-BOOT_DIR="${INSTALL_DIR}/boot"
-VM_BOOT_DIR="/var/lib/libvirt/boot/${HOSTNAME_VM}"
 LVM_NAME="/dev/${LVM_VG}/${ROOTFS_LABEL}"
 MEM_KB="$((${MEM_MB}*1024))"
 DEVICE_NAME="/tmp/virtual_disk"
@@ -93,24 +91,24 @@ configuring_vm(){
       return 1
     fi
   
-    sed -i '/GRUB_CMDLINE_LINUX_DEFAULT/s/quiet/quiet console=ttyS0/' ${INSTALL_DIR}/etc/default/grub
-    printf 'GRUB_TERMINAL="serial console"\n' >> ${INSTALL_DIR}/etc/default/grub
-    printf 'GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1"\n' >> ${INSTALL_DIR}/etc/default/grub
+  sed -i '/GRUB_CMDLINE_LINUX_DEFAULT/s/quiet/quiet console=ttyS0/' ${INSTALL_DIR}/etc/default/grub
+  printf 'GRUB_TERMINAL="serial console"\n' >> ${INSTALL_DIR}/etc/default/grub
+  printf 'GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1"\n' >> ${INSTALL_DIR}/etc/default/grub
 
-    test -e "${INSTALL_DIR}${DEVICE_NAME}" && die_script "ERROR: ${INSTALL_DIR}${DEVICE_NAME} - file exist." || mknod ${INSTALL_DIR}${DEVICE_NAME} b 7 25 
-    chroot ${INSTALL_DIR} bash -c 'update-grub'
-    sed -i "s!${DEVICE_NAME}!LABEL=${ROOTFS_LABEL}!" "${INSTALL_DIR}/boot/grub/grub.cfg"
-    chroot ${INSTALL_DIR} bash -c "grub-install --force ${DEVICE_NAME}"
-    rm ${INSTALL_DIR}${DEVICE_NAME}
+  test -e "${INSTALL_DIR}${DEVICE_NAME}" && die_script "ERROR: ${INSTALL_DIR}${DEVICE_NAME} - file exist." || mknod ${INSTALL_DIR}${DEVICE_NAME} b 7 25 
+  chroot ${INSTALL_DIR} bash -c 'update-grub'
+  sed -i "s!${DEVICE_NAME}!LABEL=${ROOTFS_LABEL}!" "${INSTALL_DIR}/boot/grub/grub.cfg"
+  chroot ${INSTALL_DIR} bash -c "grub-install --force ${DEVICE_NAME}"
+  rm ${INSTALL_DIR}${DEVICE_NAME}
 
-   if [ "$?" -ne "0" ]
-   then
-     umount ${INSTALL_DIR}/proc ${INSTALL_DIR}/sys
-     echo 'can not install grub' 
-     return 1
-   fi
+  if [ "$?" -ne "0" ]
+  then
+    umount ${INSTALL_DIR}/proc ${INSTALL_DIR}/sys
+    echo 'can not install grub' 
+    return 1
+  fi
 
-   return 0
+  return 0
 }
 
 echo "Create LVM for ${ROOTFS_LABEL}"
@@ -135,14 +133,11 @@ mount ${DEVICE_NAME} ${INSTALL_DIR} &&\
     
 if [ "$?" -ne "0" ]
 then
-  #umount ${INSTALL_DIR}/${TMP_FLD} ${INSTALL_DIR} && losetup -d "${DEVICE_NAME}" && rm "${DEVICE_NAME}"
   umount ${INSTALL_DIR} && losetup -d "${DEVICE_NAME}" && rm "${DEVICE_NAME}" "${INSTALL_DIR}${DEVICE_NAME}"
   die_script 'ERROR: Can not configured vm.'
 fi
 
-
 umount ${INSTALL_DIR}/proc ${INSTALL_DIR}/sys ${INSTALL_DIR} && losetup -d "${DEVICE_NAME}" && rm "${DEVICE_NAME}"
-
 
 virsh define /dev/stdin <<__EOF__
 <domain type='kvm'>
