@@ -130,7 +130,6 @@ virsh define /dev/stdin <<__EOF__
   <features>
     <acpi/>
     <apic/>
-    <vmport state='off'/> 
   </features>
   <pm>
     <suspend-to-mem enabled='no'/>
@@ -148,6 +147,7 @@ virsh define /dev/stdin <<__EOF__
     <console type='pty'>
       <target type='serial' port='0'/>
     </console>
+    <controller type='pci' index='0' model='pci-root'/>
     <memballoon model='virtio'></memballoon>
   </devices>
 </domain>
