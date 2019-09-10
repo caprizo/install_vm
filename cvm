@@ -1,46 +1,98 @@
 #!/bin/sh
 
-
-CONF=config_vm
 VG=test
-VMNAME=test
+NAME=test
 DIST=buster
 REPO=http://httpredir.debian.org/debian
 FS=ext4
-DISK=2G
+SIZE=2G
 MEM=256
-BR=br
+INT=vmbr
 CPUS=1
-CHIPSET=pc-i440fx-2.8
+CHIP=pc-i440fx-2.8
 
 die_script(){
    echo "$1"
    exit 1
 }
 
-test -e $CONF && . ./$CONF || die_script "ERROR: can not find $CONF."
-LABEL="$VMNAME-root"
-DIR="/tmp/vm_install/$VMNAME"
+usage(){
+  echo "
+
+    Usage: $0 [OPTION]
+
+    Option:
+    
+      -n --name     Name VM
+      -d --dist     Distributive
+      -r --repo     Repository
+      -f --fs       Type filesystem
+      -l --vg       VG name
+      -i --int	    Bridge intarface name
+      -s --size	    Disk size (M/G/K)
+      -m --mem	    Memory in Mb
+      -c --cpus	    Quantity of processors
+      -p --chip     Chipset type
+
+    Example:
+
+      $0 --name=lolo -f btrfs -c 2 --size 3G --mem=512 -i br.0 -d buster
+
+  "
+  exit 2
+}
+
+ 
+while getopts ':-:c:n:f:i:r:d:s:m:l:' OPT;do
+  case $OPT in
+    -) PARAM=$(printf "$OPTARG"|sed 's/[^=]\{1,\}=//');
+       case $OPTARG in
+         name=*) NAME="$PARAM";;
+           fs=*) FS="$PARAM";;
+          int=*) INT="$PARAM";;
+         size=*) SIZE="$PARAM";;
+           vg=*) VG="$PARAM";;
+         dist=*) DIST="$PARAM";;
+         repo=*) REPO="$PARAM";;
+          mem=*) MEM="$PARAM";;
+         cpus=*) CPUS="$PARAM";;
+         chip=*) CHIP="$PARAM";;
+              *) usage $OPTARG $PARAM ;;
+       esac;;
+    n) NAME="$OPTARG";;
+    l) VG="$OPTARG";;
+    f) FS="$OPTARG";;
+    i) INT="$OPTARG";;
+    d) DIST="$OPTARG";;
+    r) REPO="$OPTARG";;
+    s) SIZE="$OPTARG";;
+    c) CPUS="$OPTARG";;
+    m) MEM="$OPTARG";;
+    *) usage $OPTARG ;;
+  esac
+done
+
+LABEL="$NAME-root"
+DIR="/tmp/vm_install_$NAME"
 LVM="/dev/$VG/$LABEL"
 DEV="/tmp/virtual_disk"
 
 configuring_vm(){
   mknod $DIR$DEV b 7 25
-  printf "LABEL=$LABEL / $FS defaults 0 0\n" >> $DIR/etc/fstab
-  printf "$VMNAME" > $DIR/etc/hostname
+  UUID=$(blkid $DIR$DEV|grep -Po '(?<= UUID=")[^"]*')
+  printf "UUID=$UUID / $FS defaults 0 0\n" >> $DIR/etc/fstab
+  printf "$NAME" > $DIR/etc/hostname
   sed -i 's/^\s*#\s*\(ru_RU\.UTF-\?8.*\)/\1/i' $DIR/etc/locale.gen
   printf 'LANG=C.UTF-8\n' > $DIR/etc/default/locale
   printf 'APT::Install-Recommends "0";\n' > $DIR/etc/apt/apt.conf.d/20recommends
-  chroot $DIR bash -c 'mount -t proc none /proc'
-  chroot $DIR bash -c 'passwd -d root'
-  chroot $DIR bash -c 'ln -fs /usr/share/zoneinfo/Europe/Moscow /etc/localtime'
-  chroot $DIR bash -c 'dpkg-reconfigure -f noninteractive tzdata'
-  chroot $DIR bash -c 'locale-gen'
+  chroot $DIR bash -c 'mount -t proc none /proc;passwd -d root;locale-gen;
+    ln -fs /usr/share/zoneinfo/Europe/Moscow /etc/localtime;
+    dpkg-reconfigure -f noninteractive tzdata'
   sed -i '/GRUB_CMDLINE_LINUX_DEFAULT/s/quiet/quiet console=ttyS0/' $DIR/etc/default/grub
   printf 'GRUB_TERMINAL="serial console"\n' >> $DIR/etc/default/grub
   printf 'GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1"\n' >> $DIR/etc/default/grub
 chroot $DIR bash -c 'update-grub'
-  sed -i "s!$DEV!LABEL=$LABEL!" "$DIR/boot/grub/grub.cfg"
+  sed -i "s!$DEV!UUID=$UUID!" "$DIR/boot/grub/grub.cfg"
   chroot $DIR bash -c "grub-install --force $DEV" || return 1
   rm $DIR$DEV
   return 0
@@ -52,10 +104,10 @@ test -e $DEV && die_script "ERROR: $DEV file exist."
 vgs $VG >/dev/null 2>&1 || die_script 'ERROR: Can not find vg.'
 lvs $VG 2>&1|grep "^\s\{1,\}$LABEL\s" && die_script 'ERROR: LVM volume already exist.'
 
-lvcreate $VG --name $LABEL -L $DISK || die_script 'ERROR: Can not create lvm.'
+lvcreate $VG --name $LABEL -L $SIZE || die_script 'ERROR: Can not create lvm.'
 mknod $DEV b 7 25 
 losetup $DEV $LVM
-mkfs -t $FS -L $LABEL $DEV
+mkfs -t $FS $DEV
 
 test -d "$DIR" || mkdir -p "$DIR"
 
@@ -63,17 +115,17 @@ mount $DEV $DIR &&\
   debootstrap --include="locales,linux-image-amd64,grub2" $DIST $DIR $REPO &&\
   configuring_vm || ERR=1
 
-umount $DIR/proc $DIR && losetup -d $DEV && rm $DEV
+umount $DIR/proc $DIR && losetup -d $DEV && rm -rf $DEV $DIR
 test $ERR && die_script 'ERROR: Can not configured vm.'
 
 virsh define /dev/stdin <<__EOF__
 <domain type='kvm'>
-  <name>$VMNAME</name>
+  <name>$NAME</name>
   <memory unit='KiB'>$(($MEM*1024))</memory>
   <vcpu placement='static'>$CPUS</vcpu>
   <os>
-    <type arch='x86_64' machine='$CHIPSET'>hvm</type>
     <boot dev='hd'/>
+    <type arch='x86_64' machine='$CHIPSET'>hvm</type>
   </os>
   <features>
     <acpi/>
@@ -91,7 +143,7 @@ virsh define /dev/stdin <<__EOF__
       <target dev='vda' bus='virtio'/>
     </disk>
     <interface type='bridge'>
-      <source bridge='$BR'/>
+      <source bridge='$INT'/>
       <model type='virtio'/></interface>
     <console type='pty'>
       <target type='serial' port='0'/>
