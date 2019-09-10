@@ -68,7 +68,8 @@ while getopts ':-:c:n:f:i:r:d:s:m:l:' OPT;do
     s) SIZE="$OPTARG";;
     c) CPUS="$OPTARG";;
     m) MEM="$OPTARG";;
-    *) usage $OPTARG ;;
+    p) CHIP="$OPTARG";;
+    *) usage;;
   esac
 done
 
