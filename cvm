@@ -43,7 +43,7 @@ usage(){
 }
 
  
-while getopts ':-:c:n:f:i:r:d:s:m:l:' OPT;do
+while getopts ':-:c:n:f:i:r:d:s:m:l:p:' OPT;do
   case $OPT in
     -) PARAM=$(printf "$OPTARG"|sed 's/[^=]\{1,\}=//');
        case $OPTARG in
@@ -57,7 +57,7 @@ while getopts ':-:c:n:f:i:r:d:s:m:l:' OPT;do
           mem=*) MEM="$PARAM";;
          cpus=*) CPUS="$PARAM";;
          chip=*) CHIP="$PARAM";;
-              *) usage $OPTARG $PARAM ;;
+              *) usage ;;
        esac;;
     n) NAME="$OPTARG";;
     l) VG="$OPTARG";;
@@ -112,10 +112,10 @@ mkfs -t $FS $DEV
 
 test -d "$DIR" || mkdir -p "$DIR"
 
-mount $DEV $DIR &&\
-  debootstrap --include="locales,linux-image-amd64,grub2" $DIST $DIR $REPO &&\
-  configuring_vm || ERR=1
+#PACK="ssh,python,dbus,bash-completion,apt-transport-https,ca-certificates,"
+PACK="${PACK}locales,linux-image-amd64,grub2"
 
+mount $DEV $DIR && debootstrap --include="$PACK" $DIST $DIR $REPO && configuring_vm||ERR=1
 umount $DIR/proc $DIR && losetup -d $DEV && rm -rf $DEV $DIR
 test $ERR && die_script 'ERROR: Can not configured vm.'
 
@@ -150,6 +150,9 @@ virsh define /dev/stdin <<__EOF__
     </console>
     <controller type='pci' index='0' model='pci-root'/>
     <memballoon model='virtio'></memballoon>
+    <rng model='virtio'>
+      <backend model='random'>/dev/urandom</backend>
+    </rng>
   </devices>
 </domain>
 __EOF__
